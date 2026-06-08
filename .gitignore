@@ -15,11 +15,10 @@ build/
 
 # Node
 node_modules/
-dist/
+frontend/dist/
 .next/
 
 # IDE
-.vscode/
 .idea/
 
 # OS
