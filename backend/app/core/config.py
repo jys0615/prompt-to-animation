@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     kie_image_model: str = "google/nano-banana"
     kie_video_model: str = "kling-2.6/image-to-video"
 
-    kie_poll_interval_sec: float = 5.0
+    kie_poll_interval_sec: float = 2.0
     kie_poll_timeout_sec: float = 300.0
     kie_max_retries: int = 3
 

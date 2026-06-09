@@ -26,12 +26,12 @@ SYSTEM_PROMPT = """You are an animation director. Convert the user's natural lan
 Return a JSON object with:
 - title: short title for the animation (max 60 chars)
 - scenario: brief narrative description (max 300 chars)
-- cuts: array of 3-6 cuts, each with:
+- cuts: array of EXACTLY 3 cuts, each with:
   - image_prompt: detailed prompt for image generation (English, max 200 chars)
   - video_prompt: motion description for video generation (English, max 200 chars)
   - duration_sec: duration in seconds (5 or 10)
 
-Total duration should be around 30 seconds.
+You MUST generate exactly 3 cuts. Total duration should be around 30 seconds.
 Respond ONLY with valid JSON, no extra text."""
 
 

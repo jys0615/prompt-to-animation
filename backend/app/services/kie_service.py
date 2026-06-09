@@ -13,6 +13,16 @@ logger = logging.getLogger(__name__)
 KIE_COMPLETED_STATUSES = {"completed", "succeed", "success"}
 KIE_FAILED_STATUSES = {"failed", "error"}
 
+# 앱 레벨 싱글턴 클라이언트 — TCP 커넥션 재사용으로 매 호출 handshake 비용 제거
+_client: httpx.AsyncClient | None = None
+
+
+def get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(timeout=30.0)
+    return _client
+
 
 def _headers() -> dict:
     return {
@@ -107,51 +117,50 @@ async def _poll_task(client: httpx.AsyncClient, task_id: str) -> dict:
 
 async def generate_image(image_prompt: str) -> str:
     """Submit image generation task and return image URL."""
-    async with httpx.AsyncClient() as client:
-        payload = {
-            "model": settings.kie_image_model,
-            "input": {
-                "prompt": image_prompt,
-                "output_format": "png",
-                "aspect_ratio": "16:9",
-            },
-        }
-        result = await _post(client, f"{settings.kie_base_url}/api/v1/jobs/createTask", payload)
-        task_id = result["data"]["taskId"]
-        logger.info("Image task created: %s", task_id)
+    client = get_client()
+    payload = {
+        "model": settings.kie_image_model,
+        "input": {
+            "prompt": image_prompt,
+            "output_format": "png",
+            "aspect_ratio": "16:9",
+        },
+    }
+    result = await _post(client, f"{settings.kie_base_url}/api/v1/jobs/createTask", payload)
+    task_id = result["data"]["taskId"]
+    logger.info("Image task created: %s", task_id)
 
-        task_data = await _poll_task(client, task_id)
-        image_url = _extract_url(task_data)
-        if not image_url:
-            raise RuntimeError(f"No image URL in task result: {task_data}")
+    task_data = await _poll_task(client, task_id)
+    image_url = _extract_url(task_data)
+    if not image_url:
+        raise RuntimeError(f"No image URL in task result: {task_data}")
 
-        return image_url
+    return image_url
 
 
 async def generate_video(video_prompt: str, image_url: str, duration_sec: float) -> str:
     """Submit video generation task and return video URL."""
+    client = get_client()
     duration = "10" if duration_sec >= 8 else "5"
+    payload = {
+        "model": settings.kie_video_model,
+        "input": {
+            "prompt": video_prompt,
+            "image_urls": [image_url],
+            "sound": False,
+            "duration": duration,
+        },
+    }
+    result = await _post(client, f"{settings.kie_base_url}/api/v1/jobs/createTask", payload)
+    task_id = result["data"]["taskId"]
+    logger.info("Video task created: %s", task_id)
 
-    async with httpx.AsyncClient() as client:
-        payload = {
-            "model": settings.kie_video_model,
-            "input": {
-                "prompt": video_prompt,
-                "image_urls": [image_url],
-                "sound": False,
-                "duration": duration,
-            },
-        }
-        result = await _post(client, f"{settings.kie_base_url}/api/v1/jobs/createTask", payload)
-        task_id = result["data"]["taskId"]
-        logger.info("Video task created: %s", task_id)
+    task_data = await _poll_task(client, task_id)
+    video_url = _extract_url(task_data)
+    if not video_url:
+        raise RuntimeError(f"No video URL in task result: {task_data}")
 
-        task_data = await _poll_task(client, task_id)
-        video_url = _extract_url(task_data)
-        if not video_url:
-            raise RuntimeError(f"No video URL in task result: {task_data}")
-
-        return video_url
+    return video_url
 
 
 # --- Mock implementations ---
