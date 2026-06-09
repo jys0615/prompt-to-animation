@@ -9,7 +9,7 @@
 - **Database**: PostgreSQL
 - **Image Generation**: Kie API — Nano Banana (`google/nano-banana`)
 - **Video Generation**: Kie API — Kling 2.6 (`kling-2.6/image-to-video`)
-- **Scene Generation**: OpenAI GPT (`gpt-4o-mini`)
+- **Scene Generation**: OpenAI GPT (`gpt-5.4-mini`)
 
 ---
 
@@ -79,7 +79,7 @@ docker-compose up --build
 | `KIE_API_KEY` | Kie API 키 | ✅ | - |
 | `DATABASE_URL` | PostgreSQL 연결 문자열 | - | `postgresql+asyncpg://postgres:postgres@localhost:5432/animation` |
 | `MOCK_MODE` | `true` 설정 시 외부 API 호출 없이 더미 데이터 반환 | - | `false` |
-| `OPENAI_MODEL` | 사용할 OpenAI 모델 ID | - | `gpt-4o-mini` |
+| `OPENAI_MODEL` | 사용할 OpenAI 모델 ID | - | `gpt-5.4-mini` |
 | `KIE_IMAGE_MODEL` | Kie 이미지 생성 모델 | - | `google/nano-banana` |
 | `KIE_VIDEO_MODEL` | Kie 비디오 생성 모델 | - | `kling-2.6/image-to-video` |
 | `KIE_POLL_INTERVAL_SEC` | Kie 작업 폴링 간격(초) | - | `5.0` |

@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/animation"
     mock_mode: bool = False
 
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-5.4-mini"
     kie_base_url: str = "https://api.kie.ai"
     kie_image_model: str = "google/nano-banana"
     kie_video_model: str = "kling-2.6/image-to-video"

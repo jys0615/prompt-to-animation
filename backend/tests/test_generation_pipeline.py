@@ -1,51 +1,57 @@
 """
 Mock mode 기반 생성 파이프라인 통합 테스트.
-실제 DB 없이 SQLite in-memory로 실행합니다.
 """
-import asyncio
-import os
-
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
-os.environ.setdefault("OPENAI_API_KEY", "test")
-os.environ.setdefault("KIE_API_KEY", "test")
-os.environ.setdefault("MOCK_MODE", "true")
+from sqlalchemy.orm import selectinload, sessionmaker
 
 from app.core.database import Base
-from app.models.generation import GenerationScene, GenerationStatus
-from app.services.generation_pipeline import _run
+from app.models.generation import CutImage, GenerationCut, GenerationScene, GenerationStatus
+from app.services.generation_pipeline import _run, run_pipeline
 
-TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DB_URL = "sqlite+aiosqlite:///./test_pipeline.sqlite3"
 
 
 @pytest_asyncio.fixture
 async def db():
-    engine = create_async_engine(TEST_DB_URL, echo=False)
+    engine = create_async_engine(TEST_DB_URL)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with session_factory() as session:
+    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as session:
         yield session
 
     await engine.dispose()
 
+    import os
+    if os.path.exists("./test_pipeline.sqlite3"):
+        os.remove("./test_pipeline.sqlite3")
+
+
+async def _load_scene(db: AsyncSession, scene_id: str) -> GenerationScene:
+    stmt = (
+        select(GenerationScene)
+        .where(GenerationScene.id == scene_id)
+        .options(
+            selectinload(GenerationScene.cuts)
+            .selectinload(GenerationCut.images)
+            .selectinload(CutImage.videos)
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one()
+
 
 @pytest.mark.asyncio
 async def test_pipeline_completes_in_mock_mode(db: AsyncSession, monkeypatch):
-    # patch AsyncSessionLocal used inside pipeline
-    from sqlalchemy.orm import sessionmaker as sm
     from app.services import generation_pipeline
-
-    mock_factory = sm(db.bind, class_=AsyncSession, expire_on_commit=False)
 
     class _FakeCtx:
         async def __aenter__(self):
             return db
-
         async def __aexit__(self, *args):
             pass
 
@@ -58,7 +64,7 @@ async def test_pipeline_completes_in_mock_mode(db: AsyncSession, monkeypatch):
 
     await _run(db, scene.id)
 
-    await db.refresh(scene)
+    scene = await _load_scene(db, scene.id)
     assert scene.status == GenerationStatus.COMPLETED
     assert scene.title is not None
     assert len(scene.cuts) >= 1
@@ -82,7 +88,6 @@ async def test_scene_fails_on_openai_error(db: AsyncSession, monkeypatch):
     class _FakeCtx:
         async def __aenter__(self):
             return db
-
         async def __aexit__(self, *args):
             pass
 
@@ -93,12 +98,8 @@ async def test_scene_fails_on_openai_error(db: AsyncSession, monkeypatch):
     await db.commit()
     await db.refresh(scene)
 
-    await generation_pipeline.run_pipeline.__wrapped__ if hasattr(
-        generation_pipeline.run_pipeline, "__wrapped__"
-    ) else None
+    await run_pipeline(scene.id)
 
-    # run_pipeline catches exceptions and marks scene failed
-    await generation_pipeline.run_pipeline(scene.id)
-    await db.refresh(scene)
+    scene = await _load_scene(db, scene.id)
     assert scene.status == GenerationStatus.FAILED
     assert scene.error_message is not None
