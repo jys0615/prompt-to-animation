@@ -1,7 +1,8 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=("../.env", ".env"))
     openai_api_key: str
     kie_api_key: str
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/animation"
@@ -16,8 +17,6 @@ class Settings(BaseSettings):
     kie_poll_timeout_sec: float = 300.0
     kie_max_retries: int = 3
 
-    class Config:
-        env_file = ("../.env", ".env")
 
 
 settings = Settings()

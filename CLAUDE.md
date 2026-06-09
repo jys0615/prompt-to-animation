@@ -2,74 +2,102 @@
 
 ## Project Overview
 Full-stack service that converts natural language prompts into short animated videos (~30s).
-- **Frontend**: React + TypeScript (Vite)
-- **Backend**: FastAPI (Python 3.12)
+- **Frontend**: React + TypeScript (Vite), http://localhost:5173
+- **Backend**: FastAPI (Python 3.12), http://localhost:8000
 - **DB**: PostgreSQL (via docker-compose)
 
 ## Domain Model
 ```
 user prompt → GenerationScene (1:1)
 GenerationScene → GenerationCut[] (1:n)
-GenerationCut → CutImage[] (1:n)   ← Kie API, Nano banana model
-GenerationCut + CutImage → CutVideo[] (1:n)  ← Kie API, kling-2.6 model
+GenerationCut → CutImage[] (1:n)         ← Kie API, google/nano-banana
+GenerationCut + CutImage → CutVideo[] (1:n)  ← Kie API, kling-2.6/image-to-video
 ```
 
 ## Key Rules
 - API keys (OPENAI_API_KEY, KIE_API_KEY) must NEVER appear in frontend code
-- All external API keys are managed as backend environment variables only
-- Use `MOCK_MODE=true` for local development without real API calls
+- All external API keys are backend environment variables only
+- `MOCK_MODE=true` enables full flow testing without real API calls
 - Image generation must complete before video generation starts (sequential per cut)
-- All infrastructure dependencies (DB) are in docker-compose.yml; do NOT add other infra services
+- All infra dependencies (DB) are in docker-compose.yml — do NOT add other services
 
-## Backend Structure
+## Project Structure
 ```
-backend/
-  app/
-    api/         # FastAPI routers
-    core/        # config, database
-    models/      # SQLAlchemy ORM models
-    schemas/     # Pydantic request/response schemas
-    services/    # business logic (openai, kie, generation pipeline)
-  tests/
+/
+├── backend/
+│   ├── app/
+│   │   ├── api/generations.py       # REST endpoints
+│   │   ├── core/config.py           # Settings (pydantic-settings)
+│   │   ├── core/database.py         # SQLAlchemy async engine
+│   │   ├── models/generation.py     # ORM models
+│   │   ├── schemas/generation.py    # Pydantic schemas
+│   │   ├── services/
+│   │   │   ├── openai_service.py    # GPT scene generation
+│   │   │   ├── kie_service.py       # Kie image/video + polling + retry
+│   │   │   └── generation_pipeline.py  # Background orchestration
+│   │   └── main.py
+│   ├── tests/
+│   │   ├── conftest.py              # Sets env vars + SQLite DB for tests
+│   │   ├── test_api.py              # Endpoint tests (TestClient)
+│   │   └── test_generation_pipeline.py
+│   └── requirements.txt
+├── frontend/
+│   └── src/
+│       ├── api/generations.ts       # API client
+│       ├── components/              # PromptForm, CutCard, GenerationDetail, etc.
+│       ├── hooks/usePolling.ts      # 3s polling hook
+│       └── types/generation.ts     # TypeScript types
+├── docker-compose.yml               # PostgreSQL + backend + frontend
+├── .env.example
+└── CLAUDE.md
 ```
 
-## Status Flow
+## Generation Pipeline
 ```
-PENDING → PROCESSING → COMPLETED
-                     → FAILED
+POST /api/generations
+  → DB: Scene(status=pending)
+  → BackgroundTask: run_pipeline(scene_id)
+      1. OpenAI GPT → scene JSON (title, scenario, cuts[])
+      2. For each cut (sequential):
+         a. Kie POST createTask (google/nano-banana) → poll recordInfo → image_url
+         b. Kie POST createTask (kling-2.6/image-to-video) → poll recordInfo → video_url
+      3. Scene status → completed
 ```
-
-## Generation Pipeline (per scene)
-1. Call OpenAI GPT to parse user prompt → scene JSON (title, scenario, cuts[])
-2. For each cut sequentially:
-   a. POST Kie image generation (Nano banana)
-   b. Poll until image COMPLETED
-   c. POST Kie video generation (kling-2.6) using completed image
-   d. Poll until video COMPLETED
-3. Update scene status to COMPLETED when all cuts done
 
 ## API Endpoints
-- `POST /api/generations` — start generation
-- `GET /api/generations/{id}` — get status + result
-- `GET /api/generations` — list history
-- `POST /api/generations/{id}/regenerate` — regenerate (optional)
+```
+POST   /api/generations              # start generation
+GET    /api/generations              # list history
+GET    /api/generations/{id}         # get status + result (used for polling)
+POST   /api/generations/{id}/regenerate  # regenerate
+GET    /health                       # health check
+```
 
-## Environment Variables
-See `.env.example` for all required variables.
+## Status Values
+`pending` → `processing` → `completed` | `failed`
+
+## Kie API
+- Base URL: `https://api.kie.ai`
+- Create task: `POST /api/v1/jobs/createTask`
+- Poll status: `GET /api/v1/jobs/recordInfo?taskId={taskId}`
+- Auth: `Authorization: Bearer {KIE_API_KEY}`
+
+## Running Tests
+```bash
+cd backend
+pytest tests/ -v
+```
+Tests use SQLite in-memory (via conftest.py env override) — no DB setup needed.
 
 ## Running Locally
 ```bash
-# 1. Start DB
+# DB
 docker-compose up db -d
 
-# 2. Backend
-cd backend
-pip install -r requirements.txt
-cp ../.env.example .env  # fill in keys
+# Backend
+cd backend && source .venv/bin/activate
 uvicorn app.main:app --reload
 
-# 3. Frontend
-cd frontend
-npm install
-npm run dev
+# Frontend
+cd frontend && npm run dev
 ```

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.generation import GenerationStatus
 
@@ -10,25 +10,25 @@ class StartGenerationRequest(BaseModel):
 
 
 class CutVideoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     status: GenerationStatus
     video_url: str | None
 
-    class Config:
-        from_attributes = True
-
 
 class CutImageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     status: GenerationStatus
     image_url: str | None
     videos: list[CutVideoResponse] = []
 
-    class Config:
-        from_attributes = True
-
 
 class CutResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     order: int
     image_prompt: str
@@ -37,11 +37,10 @@ class CutResponse(BaseModel):
     status: GenerationStatus
     images: list[CutImageResponse] = []
 
-    class Config:
-        from_attributes = True
-
 
 class GenerationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_prompt: str
     title: str | None
@@ -52,16 +51,12 @@ class GenerationResponse(BaseModel):
     updated_at: datetime
     cuts: list[CutResponse] = []
 
-    class Config:
-        from_attributes = True
-
 
 class GenerationListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     user_prompt: str
     title: str | None
     status: GenerationStatus
     created_at: datetime
-
-    class Config:
-        from_attributes = True

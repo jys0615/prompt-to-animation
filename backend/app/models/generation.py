@@ -23,7 +23,7 @@ class GenerationScene(Base):
     title: Mapped[str | None] = mapped_column(String(255))
     scenario: Mapped[str | None] = mapped_column(Text)
     status: Mapped[GenerationStatus] = mapped_column(
-        Enum(GenerationStatus), default=GenerationStatus.PENDING
+        Enum(GenerationStatus, native_enum=False), default=GenerationStatus.PENDING
     )
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -46,7 +46,7 @@ class GenerationCut(Base):
     video_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     duration_sec: Mapped[float] = mapped_column(Float, default=5.0)
     status: Mapped[GenerationStatus] = mapped_column(
-        Enum(GenerationStatus), default=GenerationStatus.PENDING
+        Enum(GenerationStatus, native_enum=False), default=GenerationStatus.PENDING
     )
 
     scene: Mapped["GenerationScene"] = relationship("GenerationScene", back_populates="cuts")
@@ -61,7 +61,7 @@ class CutImage(Base):
     cut_id: Mapped[str] = mapped_column(ForeignKey("generation_cuts.id"), nullable=False)
     kie_task_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[GenerationStatus] = mapped_column(
-        Enum(GenerationStatus), default=GenerationStatus.PENDING
+        Enum(GenerationStatus, native_enum=False), default=GenerationStatus.PENDING
     )
     image_url: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)
@@ -79,7 +79,7 @@ class CutVideo(Base):
     cut_image_id: Mapped[str] = mapped_column(ForeignKey("cut_images.id"), nullable=False)
     kie_task_id: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[GenerationStatus] = mapped_column(
-        Enum(GenerationStatus), default=GenerationStatus.PENDING
+        Enum(GenerationStatus, native_enum=False), default=GenerationStatus.PENDING
     )
     video_url: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)
