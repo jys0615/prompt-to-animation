@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +43,7 @@ async def _run(db: AsyncSession, scene_id: str) -> None:
     await db.commit()
 
     # 2. Persist cuts
-    cuts = []
+    cut_ids = []
     for idx, cut_spec in enumerate(spec.cuts):
         cut = GenerationCut(
             scene_id=scene_id,
@@ -52,18 +53,34 @@ async def _run(db: AsyncSession, scene_id: str) -> None:
             duration_sec=cut_spec.duration_sec,
         )
         db.add(cut)
-        cuts.append((cut, cut_spec))
+        cut_ids.append((cut, cut_spec.duration_sec))
     await db.commit()
-    for cut, _ in cuts:
+    for cut, _ in cut_ids:
         await db.refresh(cut)
 
-    # 3. Process each cut sequentially
-    for cut, cut_spec in cuts:
-        await _process_cut(db, cut, cut_spec.duration_sec)
+    # 3. Process all cuts in parallel — each cut gets its own DB session
+    results = await asyncio.gather(
+        *[_process_cut_isolated(cut.id, duration_sec) for cut, duration_sec in cut_ids],
+        return_exceptions=True,
+    )
+
+    # 4. Check for failures
+    failed = [r for r in results if isinstance(r, Exception)]
+    if failed:
+        raise RuntimeError(f"{len(failed)}/{len(results)} cuts failed: {failed[0]}")
 
     scene.status = GenerationStatus.COMPLETED
     await db.commit()
-    logger.info("Scene %s completed", scene_id)
+    logger.info("Scene %s completed (%d cuts)", scene_id, len(cut_ids))
+
+
+async def _process_cut_isolated(cut_id: str, duration_sec: float) -> None:
+    """각 cut은 독립 세션으로 병렬 처리."""
+    async with AsyncSessionLocal() as db:
+        cut = await db.get(GenerationCut, cut_id)
+        if not cut:
+            raise ValueError(f"Cut {cut_id} not found")
+        await _process_cut(db, cut, duration_sec)
 
 
 async def _process_cut(db: AsyncSession, cut: GenerationCut, duration_sec: float) -> None:

@@ -22,6 +22,7 @@ async def db():
 
     factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
+        session._test_factory = factory  # 병렬 처리용 팩토리 참조 저장
         yield session
 
     await engine.dispose()
@@ -49,13 +50,18 @@ async def _load_scene(db: AsyncSession, scene_id: str) -> GenerationScene:
 async def test_pipeline_completes_in_mock_mode(db: AsyncSession, monkeypatch):
     from app.services import generation_pipeline
 
-    class _FakeCtx:
-        async def __aenter__(self):
-            return db
-        async def __aexit__(self, *args):
-            pass
+    factory = db._test_factory
 
-    monkeypatch.setattr(generation_pipeline, "AsyncSessionLocal", lambda: _FakeCtx())
+    class _FakeCtx:
+        def __init__(self):
+            self._session = None
+        async def __aenter__(self):
+            self._session = factory()
+            return await self._session.__aenter__()
+        async def __aexit__(self, *args):
+            await self._session.__aexit__(*args)
+
+    monkeypatch.setattr(generation_pipeline, "AsyncSessionLocal", _FakeCtx)
 
     scene = GenerationScene(user_prompt="A sunset over the ocean")
     db.add(scene)
@@ -91,7 +97,7 @@ async def test_scene_fails_on_openai_error(db: AsyncSession, monkeypatch):
         async def __aexit__(self, *args):
             pass
 
-    monkeypatch.setattr(generation_pipeline, "AsyncSessionLocal", lambda: _FakeCtx())
+    monkeypatch.setattr(generation_pipeline, "AsyncSessionLocal", _FakeCtx)
 
     scene = GenerationScene(user_prompt="test")
     db.add(scene)
