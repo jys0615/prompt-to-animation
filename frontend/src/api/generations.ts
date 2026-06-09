@@ -1,6 +1,6 @@
 import type { Generation, GenerationListItem } from '../types/generation';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = '';
 
 export async function startGeneration(prompt: string): Promise<Generation> {
   const res = await fetch(`${BASE_URL}/api/generations`, {

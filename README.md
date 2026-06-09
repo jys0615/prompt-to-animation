@@ -18,8 +18,6 @@
 ### 사전 준비
 
 - Docker & Docker Compose
-- Node.js 20+
-- Python 3.12+
 
 ### 1. 환경변수 설정
 
@@ -34,40 +32,40 @@ OPENAI_API_KEY=sk-...
 KIE_API_KEY=...
 ```
 
-### 2. DB 실행 (Docker)
-
-```bash
-docker-compose up db -d
-```
-
-### 3. 백엔드 실행
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-백엔드: http://localhost:8000  
-API 문서: http://localhost:8000/docs
-
-### 4. 프론트엔드 실행
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-프론트엔드: http://localhost:5173
-
-### Docker Compose 전체 실행 (선택)
+### 2. 전체 실행 (Docker Compose)
 
 ```bash
 docker-compose up --build
 ```
+
+| 서비스 | 주소 |
+|--------|------|
+| 프론트엔드 | http://localhost |
+| 백엔드 API | http://localhost/api |
+| API 문서 (Swagger) | http://localhost:8000/docs |
+
+---
+
+### 로컬 개발 실행 (선택)
+
+Docker 없이 개발할 경우:
+
+```bash
+# DB만 Docker로 실행
+docker-compose up db -d
+
+# 백엔드
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+
+# 프론트엔드 (새 터미널)
+cd frontend
+npm install && npm run dev
+```
+
+프론트엔드: http://localhost:5173 (Vite proxy가 `/api` 요청을 백엔드로 자동 전달)
 
 ---
 
